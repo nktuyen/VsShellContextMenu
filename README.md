@@ -1,0 +1,2 @@
+# VsShellContextMenu
+VsShellContextMenu
