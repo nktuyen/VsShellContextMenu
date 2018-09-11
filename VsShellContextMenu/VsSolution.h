@@ -16,6 +16,8 @@ private:
 	} m_Version;
 
 	std::map<StdString, CVsProject*> m_Projects;
+	std::map<StdString, CVsProject*>::iterator m_Ite;
+	std::map<StdString, CVsProject*>::const_iterator m_CIte;
 
 	CVsSolution(float fVer = 0.0);
 	virtual ~CVsSolution();
@@ -24,5 +26,7 @@ protected:
 public:
 	bool Valid();
 	inline const VersionInfo& Version() { return m_Version; }
+	CVsProject* firstProject();
+	CVsProject* nextProject();
 };
 

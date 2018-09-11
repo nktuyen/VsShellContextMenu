@@ -16,6 +16,7 @@ void CDebugLogger::SetLogPath(LPCTSTR lpszPath)
 
 bool CDebugLogger::Write(LPCTSTR lpszMessage, int level /* = INFO_LEVEL */)
 {
+#ifdef _ENABLE_LOG
 	EnterCriticalSection(&m_Locker);
 	if (m_hLogFile == INVALID_HANDLE_VALUE) {
 		size_t nLen = 0;
@@ -71,10 +72,14 @@ bool CDebugLogger::Write(LPCTSTR lpszMessage, int level /* = INFO_LEVEL */)
 
 	LeaveCriticalSection(&m_Locker);
 	return bRet;
+#else
+	return true;
+#endif
 }
 
 bool CDebugLogger::WriteInfo(LPCTSTR lpszFormat, ...)
 {
+#ifdef _ENABLE_LOG
 	va_list args;
 	va_start(args, lpszFormat);
 	int nLen = _vsctprintf(lpszFormat, args) + 1;
@@ -87,10 +92,14 @@ bool CDebugLogger::WriteInfo(LPCTSTR lpszFormat, ...)
 	delete[] szLog;
 	
 	return bRet;
+#else
+	return true;
+#endif
 }
 
 bool CDebugLogger::WriteWarning(LPCTSTR lpszFormat, ...)
 {
+#ifdef _ENABLE_LOG
 	va_list args;
 	va_start(args, lpszFormat);
 	int nLen = _vsctprintf(lpszFormat, args) + 1;
@@ -103,10 +112,14 @@ bool CDebugLogger::WriteWarning(LPCTSTR lpszFormat, ...)
 	delete[] szLog;
 
 	return bRet;
+#else
+	return true;
+#endif
 }
 
 bool CDebugLogger::WriteError(LPCTSTR lpszFormat, ...)
 {
+#ifdef _ENABLE_LOG
 	va_list args;
 	va_start(args, lpszFormat);
 	int nLen = _vsctprintf(lpszFormat, args) + 1;
@@ -119,6 +132,9 @@ bool CDebugLogger::WriteError(LPCTSTR lpszFormat, ...)
 	delete[] szLog;
 
 	return bRet;
+#else
+	return true;
+#endif
 }
 
 void CDebugLogger::Close()

@@ -2,6 +2,9 @@
 #include "resource.h"
 #include "VsShellContextMenuHandler.h"
 #include "DebugLogger.h"
+#include "VsSolution.h"
+#include "VsProject.h"
+
 #include <strsafe.h>
 #include <Shlwapi.h>
 #include <shellapi.h>
@@ -124,8 +127,16 @@ IFACEMETHODIMP CVsShellContextMenuHandler::Initialize(LPCITEMIDLIST pidlFolder, 
 				{
 					CDebugLogger::WriteInfo(_T("m_szSelectedFile=%s"), m_szSelectedFile);
 					m_File.Close();
-					if(m_File.Open(m_szSelectedFile) && m_File.Valid())
+					if (m_File.Open(m_szSelectedFile) && m_File.Valid()) {
+						CVsSolution* pSln = m_File.Solution();
+						CVsProject* pPrj = pSln->firstProject();
+						while (nullptr != pPrj) {
+							CDebugLogger::WriteInfo(pPrj->Guid(), pPrj->Name());
+
+							pPrj = pSln->nextProject();
+						}
 						hr = S_OK;
+					}
 				}
 			}
 
