@@ -17,3 +17,8 @@ CVsProject::CVsProject(LPCTSTR lpszGuide /* = nullptr */, LPCTSTR lpszName /* = 
 CVsProject::~CVsProject()
 {
 }
+
+bool CVsProject::Valid()
+{
+	return m_strName.empty() == false;
+}

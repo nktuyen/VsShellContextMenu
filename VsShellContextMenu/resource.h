@@ -4,6 +4,12 @@
 //
 
 #define IDB_OK                          101
+#define IDB_VS2005						102
+#define IDB_VS2008						103
+#define IDB_VS2010						104
+#define IDB_VS2012						105
+#define IDB_VS2015						106
+#define IDB_VS2017						107
 
 // Next default values for new objects
 // 

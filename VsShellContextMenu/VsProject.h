@@ -13,9 +13,14 @@ private:
 
 	StdString m_strGuide;
 	StdString m_strName;
+	StdString m_strPath;
+	StdString m_strId;
 protected:
 public:
+	bool Valid();
 	LPCTSTR Guid() { return m_strGuide.c_str(); }
 	LPCTSTR Name() { return m_strName.c_str(); }
+	LPCTSTR Path() { return m_strPath.c_str(); }
+	LPCTSTR ID() { return m_strId.c_str(); }
 };
 

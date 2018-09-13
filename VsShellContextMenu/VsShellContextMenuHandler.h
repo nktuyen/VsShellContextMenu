@@ -23,7 +23,8 @@ protected:
 	virtual ~CVsShellContextMenuHandler(void);
 private:
 	PCWSTR m_pszMenuText;
-	HANDLE m_hMenuBmp;
+	HANDLE m_hSettingsMenuBmp;
+	std::map<UINT, HANDLE> m_hMainBitmaps;
 	PCSTR m_pszVerb;
 	PCWSTR m_pwszVerb;
 	PCSTR m_pszVerbCanonicalName;

@@ -5,6 +5,7 @@
 #include <map>
 
 class CVsProject;
+class CVsGlobal;
 
 class CVsSolution : public CVsFileElement
 {
@@ -18,14 +19,21 @@ private:
 	std::map<StdString, CVsProject*> m_Projects;
 	std::map<StdString, CVsProject*>::iterator m_Ite;
 	std::map<StdString, CVsProject*>::const_iterator m_CIte;
+	StdString m_strPath;
+	CVsGlobal* m_pGlobal;
 
-	CVsSolution(float fVer = 0.0);
+	CVsSolution(LPCTSTR lpszPath, float fVer = 0.0);
 	virtual ~CVsSolution();
 protected:
 	bool addProject(StdString guid, CVsProject* pProject);
+	void setVersion(float fVer);
 public:
 	bool Valid();
 	inline const VersionInfo& Version() { return m_Version; }
+	inline const StdString& Path() { return m_strPath; }
+	StdString Name();
+	inline CVsGlobal* const Global() { return m_pGlobal; }
+
 	CVsProject* firstProject();
 	CVsProject* nextProject();
 };

@@ -3,23 +3,30 @@
 #include "DebugLogger.h"
 #include "VsSolution.h"
 #include "VsProject.h"
+#include "VsGlobal.h"
 
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <math.h>
 #include <list>
+#include <vector>
+#include <sstream>
+#include <iostream>
+#include <algorithm>
 
 #define PROJECT_GUIDE_LEN						38
-#define VS_VERSION_SUPPORT_MIN					9.00
-#define VS_VERSION_SUPPORT_MAX					12.00
 #define FILE_HEADER_FORMAT_STRING				StdString(_T("Microsoft Visual Studio Solution File, "))
 #define FILE_HEDAER_VERSION_STRING				StdString(_T("Microsoft Visual Studio Solution File, Format Version "))
-#define FILE_HEADER_VS_VERSION_STRING			StdString(_T("# Visual Studio "))
+#define FILE_HEADER_VS_VERSION_REMARK_STRING	StdString(_T("# Visual Studio "))
+#define FILE_HEADER_VS_VERSION_STRING			StdString(_T("VisualStudioVersion"))
 #define FILE_HEADER_PROJECT_BEGIN				StdString(_T("Project(\""))
 #define FILE_HEADER_PROJECT_END					StdString(_T("EndProject"))
 #define FILE_HEADER_GLOBAL_START				StdString(_T("Global"))
 #define FILE_HEADER_GLOBAL_END					StdString(_T("EndGlobal"))
+#define FILE_HEADER_GLOBALSECTION_START			StdString(_T("GlobalSection"))
+#define FILE_HEADER_GLOBALSECTION_END			StdString(_T("EndGlobalSection"))
+
 
 CVsSolutionFile::CVsSolutionFile(LPCTSTR lpszFilePath/* = nullptr*/)
 	: m_pSolution(nullptr)
@@ -36,9 +43,30 @@ CVsSolutionFile::~CVsSolutionFile()
 	this->Close();
 }
 
+std::vector<StdString> CVsSolutionFile::SplitString(const StdString& input, StdChar c)
+{
+	std::vector<StdString> out;
+	size_t nStart = 0;
+	StdString strTemp;
+	size_t nPos = input.find(c, nStart);
+
+	while ( (nPos != std::string::npos) && (nStart < input.length()) ) {
+		strTemp = input.substr(nStart, nPos - nStart);
+		out.push_back(strTemp);
+		nStart = (nPos + 1);
+		nPos = input.find(c, nStart);
+	}
+
+	if (nStart < input.length()) {
+		strTemp = input.substr(nStart);
+		out.push_back(strTemp);
+	}
+	
+	return out;
+}
+
 bool CVsSolutionFile::ValidateGuidString(StdString guid)
 {
-	CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 	StdString temp = guid;
 
 	if (temp.length() != PROJECT_GUIDE_LEN) {
@@ -51,7 +79,6 @@ bool CVsSolutionFile::ValidateGuidString(StdString guid)
 		return false;
 	}
 
-	CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 	return true;
 }
 
@@ -66,6 +93,7 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 	}
 
 	std::ifstream file(m_szFilePath);
+	std::vector<StdString> arrString;
 	TCHAR *pszLine = nullptr;
 	size_t nLineLen = 0;
 	size_t nPreLen = 0;
@@ -78,7 +106,7 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 		std::string line;
 		StdString linew;
 		StdString linewSub;
-		float fVersion = 0.0;
+		float fFileVersion = 0.0;
 		while (std::getline(file, line)) {
 			line = Trim<std::string>(line);
 
@@ -94,13 +122,14 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 			if (nLineLen <= 0) {
 				delete[] pszLine;
 				pszLine = nullptr;
-
+				CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 				break;
 			}
 			pszLine[nLineLen] = 0;
 			linew = Trim<StdString>(pszLine);
 			if(linew.empty())
 				continue;
+
 			nPos = 0;
 
 			nLineLen = linew.length();
@@ -115,180 +144,208 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 				nPreLen = FILE_HEADER_FORMAT_STRING.length();
 				if (nLineLen < nPreLen) {
 					eRet = EVsSolutionFileError_Invalid;
+					CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 					break;
 				}
 
 				linewSub = linew.substr(nPos, nPreLen);
-				CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 
 				if (FILE_HEADER_FORMAT_STRING.compare(linewSub) != 0) {
-					CDebugLogger::WriteInfo(_T("Invalid File Format."));
+					CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 					eRet = EVsSolutionFileError_Invalid;
 					break;
 				}
 
 				nPreLen = FILE_HEDAER_VERSION_STRING.length();
 				linewSub = linew.substr(nPos, nPreLen);
-				CDebugLogger::WriteInfo(_T("%d:linewSub=%s"), __LINE__, linewSub.c_str());
 
 				if (FILE_HEDAER_VERSION_STRING.compare(linewSub) != 0) {
-					CDebugLogger::WriteInfo(_T("Invalid File Version."));
+					CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 					eRet = EVsSolutionFileError_Invalid;
 					break;
 				}
 				nPos += FILE_HEDAER_VERSION_STRING.length();
 
 				linewSub = linew.substr(nPos);
-				CDebugLogger::WriteInfo(_T("%d:linewSub=%s"), __LINE__, linewSub.c_str());
-				fVersion = float(_tstof(linewSub.c_str()));
-				CDebugLogger::WriteInfo(_T("%.4f"), fVersion);
-				if (fVersion <= 0.0) {
+				fFileVersion = float(_tstof(linewSub.c_str()));
+
+				if (fFileVersion <= 0.0) {
 					eRet = EVsSolutionFileError_Invalid;
+					CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 					break;
 				}
 
-				if (fVersion < VS_VERSION_SUPPORT_MIN) {
+				if (fFileVersion < VS_VERSION_SUPPORT_MIN) {
+					CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 					eRet = EVsSolutionFileError_UnSupported;
 					break;
 				}
 
-				if (fVersion > VS_VERSION_SUPPORT_MAX) {
+				if (fFileVersion > VS_VERSION_SUPPORT_MAX) {
+					CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 					eRet = EVsSolutionFileError_UnSupported;
 					break;
 				}
 
-				m_pSolution = new CVsSolution(fVersion);
+				m_pSolution = new CVsSolution(lpszFilePath, fFileVersion);
 				m_pSolution->Initialize();
-				CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 			}
 			else {
-				CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+				if (FILE_HEADER_VS_VERSION_STRING.length() < linew.length()) {
+					linewSub = linew.substr(nPos, FILE_HEADER_VS_VERSION_STRING.length());
+					nPos += FILE_HEADER_VS_VERSION_STRING.length();
+
+					if (FILE_HEADER_VS_VERSION_STRING.compare(linewSub) == 0) {
+						arrString = SplitString(linew,'=');
+						if (arrString.size() == 2) {
+							linewSub = Trim<StdString>(arrString[0]);
+							if (linewSub.compare(FILE_HEADER_VS_VERSION_STRING) == 0) {
+								StdString strVsVersion = Trim<StdString>(arrString[1]);
+								float fVsVersion= float(_tstof(strVsVersion.c_str()));
+
+								if (fVsVersion <= 0.0f) {
+									CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+									eRet = EVsSolutionFileError_UnSupported;
+									break;
+								}
+
+								if (nullptr != m_pSolution) {
+									CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+									eRet = EVsSolutionFileError_UnSupported;
+									break;
+								}
+
+								m_pSolution->setVersion(fVsVersion);
+							}
+						}
+					}
+				}
+
 				if (FILE_HEADER_PROJECT_BEGIN.length() < linew.length()) {
 					linewSub = linew.substr(nPos, FILE_HEADER_PROJECT_BEGIN.length());
-					CDebugLogger::WriteInfo(_T("%d:linewSub=%s"), __LINE__, linewSub.c_str());
+					
 					if (FILE_HEADER_PROJECT_BEGIN.compare(linewSub) == 0) {
 						nPos += FILE_HEADER_PROJECT_BEGIN.length();
 						linewSub = linew.substr(nPos, PROJECT_GUIDE_LEN);	//Project Guid
-						CDebugLogger::WriteInfo(_T("%d:linewSub=%s"), __LINE__, linewSub.c_str());
 
 						if (ValidateGuidString(linewSub)) {
 							if (pCurProject != nullptr) {
 								delete pCurProject;
 								pCurProject = nullptr;
 								eRet = EVsSolutionFileError_Invalid;
+								CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 								break;
 							}
 							
-							CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 							pCurProject = new CVsProject(linewSub.c_str());
 							pCurProject->Initialize();
 
 							nPos += linewSub.length() + 1;
 							linewSub = linew.substr(nPos+1);	//Project name
 							nPos += TrimLeft(linewSub);
-							CDebugLogger::WriteInfo(_T("%d:linewSub=%s"), __LINE__, linewSub.c_str());
 
 							if (linewSub.empty()) {
 								eRet = EVsSolutionFileError_Invalid;
+								CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 								break;
 							}
 
 							nPosSub = linewSub.find('=');
-							if (nPos < 0) {
+							if (nPos == StdString::npos) {
 								eRet = EVsSolutionFileError_Invalid;
-								CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+								CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 								break;
 							}
 
 							nPos += nPosSub + 1;
 							linewSub = linew.substr(nPos + 1);
 							nPos += TrimLeft(linewSub);
-							CDebugLogger::WriteInfo(_T("%d:linewSub=%s"), __LINE__, linewSub.c_str());
-							if (linewSub.empty()) {
+							
+							arrString = SplitString(linewSub, ',');
+							
+							if (arrString.size() <= 0) {
 								eRet = EVsSolutionFileError_Invalid;
-								CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+								CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 								break;
 							}
 
-							if (linewSub[0] != '\"') {
-								eRet = EVsSolutionFileError_Invalid;
-								CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
-								break;
-							}
-							nPos += 1;
+							nPos = 0;
+							std::for_each(arrString.begin(), arrString.end(), [&](StdString& s) {
 
-							nPosSub = linewSub.find('\"', 1);
-							if(nPosSub < 0) {
-								eRet = EVsSolutionFileError_Invalid;
-								CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
-								break;
-							}
+								linewSub = Trim(arrString[nPos]);
+								nPos++;
 
-							linewSub = linew.substr(nPos, nPosSub + 1);	//Project name
-							CDebugLogger::WriteInfo(_T("%d:linewSub=%s"), __LINE__, linewSub.c_str());
-							nPos += TrimLeft(linewSub);
-							CDebugLogger::WriteInfo(_T("%d:linewSub=%s"), __LINE__, linewSub.c_str());
-
-							if (linewSub.empty()) {
-								eRet = EVsSolutionFileError_Invalid;
-								CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
-								break;
-							}
-
-							if (linewSub[0] == '\"') {
-								if (linewSub[linewSub.length() - 1] != '\"') {
+								if (linewSub.empty()) {
 									eRet = EVsSolutionFileError_Invalid;
-									CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
-									break;
+									CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+									return;
 								}
 
-								pCurProject->m_strName = linewSub.substr(1, linewSub.length()-1-1);
-							}
-							else {
-								pCurProject->m_strName = linewSub;
-							}
-							
-							CDebugLogger::WriteInfo(_T("%d:pCurProject->m_strName=%s"), __LINE__, pCurProject->m_strName.c_str());
+								if (linewSub[0] == '\"') {
+									if (linewSub[linewSub.length() - 1] != '\"') {
+										eRet = EVsSolutionFileError_Invalid;
+										CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+										return;
+									}
 
-							nPos += linewSub.length();
+									linewSub.erase(0,1);
+									linewSub.erase(linewSub.length() - 1, 1);
+								}
 
-							linewSub = linew.substr(nPos);
-							CDebugLogger::WriteInfo(_T("%d:linewSub=%s"), __LINE__, linewSub.c_str());
-							nPos += TrimLeft(linewSub);
+								if (nPos == 1) {
+									pCurProject->m_strName = linewSub;
+								}
+								else if (nPos == 2) {
+									pCurProject->m_strPath = linewSub;
+								}
+								else if (nPos == 3) {
+									if (!ValidateGuidString(linewSub)) {
+										eRet = EVsSolutionFileError_Invalid;
+										CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+										return;
+									}
 
-							if (linewSub[0] != ',') {
-								eRet = EVsSolutionFileError_Invalid;
-								CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
-								break;
-							}
-
-							nPos += 1;
-							linewSub = linew.substr(nPos);
-							nPos += TrimLeft(linewSub);
-							CDebugLogger::WriteInfo(_T("%d:linewSub=%s"), __LINE__, linewSub.c_str());
-
-							continue;
+									pCurProject->m_strId = linewSub;
+								}
+							});
 						}
-						
-						eRet = EVsSolutionFileError_Invalid;
-						break;
 					}
 				}
 				
-				CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 				if (FILE_HEADER_PROJECT_END.compare(linew) == 0) {
 					if (pCurProject == nullptr) {
 						eRet = EVsSolutionFileError_Invalid;
-						CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+						CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 						break;
 					}
 
-					if (pCurProject != nullptr) {
-						pCurProject->Finallize();
-						mProjects.push_back(pCurProject);
-						pCurProject = nullptr;
-						CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+					pCurProject->Finallize();
+					mProjects.push_back(pCurProject);
+					pCurProject = nullptr;
+
+					continue;
+				}
+
+				if (FILE_HEADER_GLOBAL_START.compare(linew) == 0) {
+					if ((nullptr == m_pSolution) || (nullptr == m_pSolution->Global())) {
+						eRet = EVsSolutionFileError_Invalid;
+						CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+						break;
 					}
+
+					m_pSolution->Global()->Initialize();
+
+					continue;
+				}
+
+				if (FILE_HEADER_GLOBAL_END.compare(linew) == 0) {
+					if ((nullptr == m_pSolution) || (nullptr == m_pSolution->Global())) {
+						eRet = EVsSolutionFileError_Invalid;
+						CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+						break;
+					}
+
+					m_pSolution->Global()->Finallize();
 
 					continue;
 				}
@@ -309,15 +366,16 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 	if (pCurProject != nullptr) {
 		delete pCurProject;
 		eRet = EVsSolutionFileError_Invalid;
+		CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 	}
 
-	CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 	if (m_pSolution == nullptr) {
 		eRet = EVsSolutionFileError_Invalid;
+		CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 	}
 
-	CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 	if (eRet != EVsSolutionFileError_NoErr) {
+		CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 		for (std::list<CVsProject*>::iterator ite = mProjects.begin(); ite != mProjects.end(); ++ite) {
 			pCurProject = (*ite);
 			delete pCurProject;
@@ -336,7 +394,7 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 	for (std::list<CVsProject*>::iterator ite = mProjects.begin(); ite != mProjects.end(); ++ite) {
 		pCurProject = (*ite);
 		if (pCurProject != nullptr) {
-			m_pSolution->addProject(pCurProject->m_strGuide, pCurProject);
+			m_pSolution->addProject(pCurProject->m_strId, pCurProject);
 		}
 	}
 
@@ -348,8 +406,10 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 		m_pSolution = nullptr;
 
 		eRet = EVsSolutionFileError_Invalid;
+		CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 		return eRet;
 	}
+
 	CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 
 	return eRet;
@@ -357,8 +417,10 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 
 bool CVsSolutionFile::Valid()
 {
-	if (nullptr == m_pSolution)
+	if (nullptr == m_pSolution) {
+		CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 		return false;
+	}
 
 	return m_pSolution->Valid();
 }

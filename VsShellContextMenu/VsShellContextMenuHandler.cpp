@@ -35,16 +35,18 @@ CVsShellContextMenuHandler::CVsShellContextMenuHandler(void)
 	// Load the bitmap for the menu item. 
 	// If you want the menu item bitmap to be transparent, the color depth of 
 	// the bitmap must not be greater than 8bpp.
-	m_hMenuBmp = LoadImage(g_hInst, MAKEINTRESOURCE(IDB_OK),
-		IMAGE_BITMAP, 0, 0, LR_DEFAULTSIZE | LR_LOADTRANSPARENT);
+	m_hSettingsMenuBmp = LoadImage(g_hInst, MAKEINTRESOURCE(IDB_OK), IMAGE_BITMAP, 0, 0, LR_DEFAULTSIZE | LR_LOADTRANSPARENT);
+	for (UINT nIndex = IDB_VS2005; nIndex <= IDB_VS2017; nIndex++) {
+		m_hMainBitmaps[VS_VERSION_SUPPORT_MIN+(nIndex-IDB_VS2005)] = LoadImage(g_hInst, MAKEINTRESOURCE(nIndex), IMAGE_BITMAP, 0, 0, LR_DEFAULTSIZE | LR_LOADTRANSPARENT);
+	}
 }
 
 CVsShellContextMenuHandler::~CVsShellContextMenuHandler()
 {
-	if (m_hMenuBmp)
+	if (m_hSettingsMenuBmp)
 	{
-		DeleteObject(m_hMenuBmp);
-		m_hMenuBmp = NULL;
+		DeleteObject(m_hSettingsMenuBmp);
+		m_hSettingsMenuBmp = NULL;
 	}
 
 	InterlockedDecrement(&g_cDllRef);
@@ -127,15 +129,12 @@ IFACEMETHODIMP CVsShellContextMenuHandler::Initialize(LPCITEMIDLIST pidlFolder, 
 				{
 					CDebugLogger::WriteInfo(_T("m_szSelectedFile=%s"), m_szSelectedFile);
 					m_File.Close();
-					if (m_File.Open(m_szSelectedFile) && m_File.Valid()) {
-						CVsSolution* pSln = m_File.Solution();
-						CVsProject* pPrj = pSln->firstProject();
-						while (nullptr != pPrj) {
-							CDebugLogger::WriteInfo(pPrj->Guid(), pPrj->Name());
-
-							pPrj = pSln->nextProject();
-						}
+					if (m_File.Open(m_szSelectedFile) == EVsSolutionFileError_NoErr) {
 						hr = S_OK;
+					}
+					else {
+						CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+						hr = S_FALSE;
 					}
 				}
 			}
@@ -177,43 +176,56 @@ IFACEMETHODIMP CVsShellContextMenuHandler::QueryContextMenu(HMENU hMenu, UINT in
 	// Learn how to add sub-menu from:
 	// http://www.codeproject.com/KB/shell/ctxextsubmenu.aspx
 
+	UINT nMainMenuCount = 0;
+	// Add a separator.
+	MENUITEMINFO sep = { sizeof(sep) };
+	sep.fMask = MIIM_TYPE;
+	sep.fType = MFT_SEPARATOR;
+	if (!InsertMenuItem(hMenu, indexMenu + nMainMenuCount++, TRUE, &sep))
+	{
+		return HRESULT_FROM_WIN32(GetLastError());
+	}
+
+
+	if (m_File.Valid()) {
+		CVsSolution* pSolution = m_File.Solution();
+		if (nullptr != pSolution) {
+			// Add settings item
+			MENUITEMINFO mainItem = { sizeof(mainItem) };
+			mainItem.fMask = MIIM_STRING | MIIM_FTYPE | MIIM_ID | MIIM_STATE;
+			mainItem.wID = idCmdFirst + IDM_SETTINGS;
+			mainItem.fType = MFT_STRING;
+			mainItem.dwTypeData = (PWSTR)m_File.Solution()->Name().c_str();
+			mainItem.fState = MFS_ENABLED;
+
+			mainItem.hbmpItem = static_cast<HBITMAP>(m_hMainBitmaps[pSolution->Version().Major]);
+			
+			if (!InsertMenuItem(hMenu, indexMenu + nMainMenuCount++, TRUE, &mainItem))
+			{
+				return HRESULT_FROM_WIN32(GetLastError());
+			}
+		}
+	}
+
 	MENUITEMINFO mii = { sizeof(mii) };
 	mii.fMask = MIIM_BITMAP | MIIM_STRING | MIIM_FTYPE | MIIM_ID | MIIM_STATE;
 	mii.wID = idCmdFirst + IDM_DISPLAY;
 	mii.fType = MFT_STRING;
-	mii.dwTypeData = (PWSTR)m_pszMenuText;
+	mii.dwTypeData = (PWSTR)L"VsShellContextMenu Settings...";
 	mii.fState = MFS_ENABLED;
-	mii.hbmpItem = static_cast<HBITMAP>(m_hMenuBmp);
-	if (!InsertMenuItem(hMenu, indexMenu, TRUE, &mii))
+	mii.hbmpItem = static_cast<HBITMAP>(m_hSettingsMenuBmp);
+	if (!InsertMenuItem(hMenu, indexMenu + nMainMenuCount++, TRUE, &mii))
 	{
 		return HRESULT_FROM_WIN32(GetLastError());
 	}
 
 	// Add a separator.
-	MENUITEMINFO sep = { sizeof(sep) };
-	sep.fMask = MIIM_TYPE;
-	sep.fType = MFT_SEPARATOR;
-	if (!InsertMenuItem(hMenu, indexMenu + 1, TRUE, &sep))
+	if (!InsertMenuItem(hMenu, indexMenu + nMainMenuCount++, TRUE, &sep))
 	{
 		return HRESULT_FROM_WIN32(GetLastError());
 	}
 
-	// Add settings item
-	MENUITEMINFO settings = { sizeof(settings) };
-	settings.fMask = MIIM_STRING | MIIM_FTYPE | MIIM_ID | MIIM_STATE;
-	settings.wID = idCmdFirst + IDM_SETTINGS;
-	settings.fType = MFT_STRING;
-	settings.dwTypeData = (PWSTR)L"VsShellContextMenu Settings...";
-	settings.fState = MFS_ENABLED;
-	//mii.hbmpItem = static_cast<HBITMAP>(m_hMenuBmp);
-	if (!InsertMenuItem(hMenu, indexMenu + 2, TRUE, &settings))
-	{
-		return HRESULT_FROM_WIN32(GetLastError());
-	}
-
-	// Return an HRESULT value with the severity set to SEVERITY_SUCCESS. 
-	// Set the code value to the offset of the largest command identifier 
-	// that was assigned, plus one (1).
+	
 	return MAKE_HRESULT(SEVERITY_SUCCESS, 0, USHORT(IDM_DISPLAY + 1));
 }
 

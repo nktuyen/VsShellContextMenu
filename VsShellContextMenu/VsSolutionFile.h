@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <vector>
 #include "DebugLogger.h"
 
 class CVsSolution;
@@ -52,5 +53,6 @@ private:
 	CVsSolution* m_pSolution;
 
 	bool ValidateGuidString(StdString guid);
+	std::vector<StdString> SplitString(const StdString& input, StdChar c = ',');
 };
 
