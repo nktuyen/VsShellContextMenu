@@ -151,7 +151,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="FileBase.h" />
     <ClInclude Include="VsFileElement.h" />
     <ClInclude Include="DebugLogger.h" />
     <ClInclude Include="resource.h" />
@@ -166,7 +165,6 @@
     <ClInclude Include="VsSolutionFile.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="FileBase.cpp" />
     <ClCompile Include="VsFileElement.cpp" />
     <ClCompile Include="DebugLogger.cpp" />
     <ClCompile Include="dllmain.cpp" />
@@ -191,7 +189,13 @@
     <ResourceCompile Include="VsShellContextMenu.rc" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="res\OK.bmp" />
+    <Image Include="res\VS2005.ico" />
+    <Image Include="res\VS2008.ico" />
+    <Image Include="res\VS2010.ico" />
+    <Image Include="res\VS2012.ico" />
+    <Image Include="res\VS2013.ico" />
+    <Image Include="res\VS2015.ico" />
+    <Image Include="res\VS2017.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

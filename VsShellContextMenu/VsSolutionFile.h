@@ -8,9 +8,9 @@ class CVsSolution;
 
 template <typename S>
 S Trim(const S& input) {
-	size_t start = 0, end = input.length();
-	while (input[start]==' '){start++;}
-	while (end > start && input[end - 1] == ' ') { end--; }
+	size_t start = 0, end = input.length()-1;
+	while ((input[start] == ' ') && (start < end)) {start++;}
+	while ((input[end] == ' ') && (end > start)) { end--; }
 
 	return input.substr(start, end - start + 1);
 }

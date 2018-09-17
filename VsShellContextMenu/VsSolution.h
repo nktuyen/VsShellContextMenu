@@ -30,8 +30,8 @@ protected:
 public:
 	bool Valid();
 	inline const VersionInfo& Version() { return m_Version; }
-	inline const StdString& Path() { return m_strPath; }
-	StdString Name();
+	inline const LPCTSTR Path() { return m_strPath.c_str(); }
+	LPCTSTR Name();
 	inline CVsGlobal* const Global() { return m_pGlobal; }
 
 	CVsProject* firstProject();

@@ -22,16 +22,17 @@ public:
 protected:
 	virtual ~CVsShellContextMenuHandler(void);
 private:
-	PCWSTR m_pszMenuText;
 	HANDLE m_hSettingsMenuBmp;
-	std::map<UINT, HANDLE> m_hMainBitmaps;
-	PCSTR m_pszVerb;
+	std::map<UINT, HANDLE> m_hSolutionBitmaps;
 	PCWSTR m_pwszVerb;
+	PCSTR m_pszVerb;
 	PCSTR m_pszVerbCanonicalName;
 	PCWSTR m_pwszVerbCanonicalName;
 	PCSTR m_pszVerbHelpText;
 	PCWSTR m_pwszVerbHelpText;
 	CVsSolutionFile m_File;
+	HMENU m_hSubMenu;
+
 	// Reference count of component.
 	long m_cRef;
 
@@ -39,6 +40,6 @@ private:
 	wchar_t m_szSelectedFile[MAX_PATH];
 
 	// The method that handles the "display" verb.
-	void OnVerbDisplayFileName(HWND hWnd);
+	void OnVerb(HWND hWnd);
 };
 

@@ -70,12 +70,12 @@ bool CVsSolutionFile::ValidateGuidString(StdString guid)
 	StdString temp = guid;
 
 	if (temp.length() != PROJECT_GUIDE_LEN) {
-		CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+		CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 		return false;
 	}
 
 	if (temp[0] != '{' || temp[temp.length() - 1] != '}') {
-		CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+		CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 		return false;
 	}
 
@@ -85,7 +85,7 @@ bool CVsSolutionFile::ValidateGuidString(StdString guid)
 EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 {
 	EVsSolutionFileError eRet = EVsSolutionFileError_NoErr;
-	CDebugLogger::WriteInfo(__FUNCTIONW__);
+	//CDebugLogger::WriteInfo(__FUNCTIONW__);
 	this->Close();
 	if (nullptr != lpszFilePath) {
 		memset(m_szFilePath, 0, MAX_PATH * sizeof(TCHAR));
@@ -191,43 +191,46 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 				m_pSolution->Initialize();
 			}
 			else {
+				nPos = 0;
 				if (FILE_HEADER_VS_VERSION_STRING.length() < linew.length()) {
 					linewSub = linew.substr(nPos, FILE_HEADER_VS_VERSION_STRING.length());
 					nPos += FILE_HEADER_VS_VERSION_STRING.length();
-
 					if (FILE_HEADER_VS_VERSION_STRING.compare(linewSub) == 0) {
 						arrString = SplitString(linew,'=');
+						//CDebugLogger::WriteInfo(_T("%s[%d] %d"), __FUNCTIONW__, __LINE__, arrString.size());
 						if (arrString.size() == 2) {
 							linewSub = Trim<StdString>(arrString[0]);
 							if (linewSub.compare(FILE_HEADER_VS_VERSION_STRING) == 0) {
 								StdString strVsVersion = Trim<StdString>(arrString[1]);
 								float fVsVersion= float(_tstof(strVsVersion.c_str()));
-
 								if (fVsVersion <= 0.0f) {
 									CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 									eRet = EVsSolutionFileError_UnSupported;
 									break;
 								}
 
-								if (nullptr != m_pSolution) {
+								if (nullptr == m_pSolution) {
 									CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 									eRet = EVsSolutionFileError_UnSupported;
 									break;
 								}
 
 								m_pSolution->setVersion(fVsVersion);
+								continue;
 							}
 						}
 					}
 				}
 
+				nPos = 0;
 				if (FILE_HEADER_PROJECT_BEGIN.length() < linew.length()) {
 					linewSub = linew.substr(nPos, FILE_HEADER_PROJECT_BEGIN.length());
-					
+					//CDebugLogger::WriteInfo(_T("%s[%d] %s"), __FUNCTIONW__, __LINE__, linewSub.c_str());
 					if (FILE_HEADER_PROJECT_BEGIN.compare(linewSub) == 0) {
+						//CDebugLogger::WriteInfo(_T("%s[%d] %s"), __FUNCTIONW__, __LINE__, linewSub.c_str());
 						nPos += FILE_HEADER_PROJECT_BEGIN.length();
 						linewSub = linew.substr(nPos, PROJECT_GUIDE_LEN);	//Project Guid
-
+						//CDebugLogger::WriteInfo(_T("%s[%d] %s"), __FUNCTIONW__, __LINE__, linewSub.c_str());
 						if (ValidateGuidString(linewSub)) {
 							if (pCurProject != nullptr) {
 								delete pCurProject;
@@ -309,9 +312,15 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 								}
 							});
 						}
+
+						if (eRet != EVsSolutionFileError_NoErr)
+							break;
+						else
+							continue;
 					}
 				}
 				
+				nPos = 0;
 				if (FILE_HEADER_PROJECT_END.compare(linew) == 0) {
 					if (pCurProject == nullptr) {
 						eRet = EVsSolutionFileError_Invalid;
@@ -326,6 +335,7 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 					continue;
 				}
 
+				nPos = 0;
 				if (FILE_HEADER_GLOBAL_START.compare(linew) == 0) {
 					if ((nullptr == m_pSolution) || (nullptr == m_pSolution->Global())) {
 						eRet = EVsSolutionFileError_Invalid;
@@ -338,6 +348,7 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 					continue;
 				}
 
+				nPos = 0;
 				if (FILE_HEADER_GLOBAL_END.compare(linew) == 0) {
 					if ((nullptr == m_pSolution) || (nullptr == m_pSolution->Global())) {
 						eRet = EVsSolutionFileError_Invalid;
@@ -349,6 +360,8 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 
 					continue;
 				}
+
+				continue;
 			}
 		}
 	}
@@ -357,11 +370,10 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 			delete[] pszLine;
 			pszLine = nullptr;
 		}
-		CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
+		CDebugLogger::WriteError(_T("%s[%d] Exception"), __FUNCTIONW__, __LINE__);
 		return eRet;
 	}
 
-	CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 
 	if (pCurProject != nullptr) {
 		delete pCurProject;
@@ -390,7 +402,6 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 		return eRet;
 	}
 
-	CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 	for (std::list<CVsProject*>::iterator ite = mProjects.begin(); ite != mProjects.end(); ++ite) {
 		pCurProject = (*ite);
 		if (pCurProject != nullptr) {
@@ -399,7 +410,6 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 	}
 
 	m_pSolution->Finallize();
-	CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 
 	if (!m_pSolution->Valid()) {
 		delete m_pSolution;
@@ -409,8 +419,6 @@ EVsSolutionFileError CVsSolutionFile::Open(LPCTSTR lpszFilePath /* = nullptr */)
 		CDebugLogger::WriteError(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 		return eRet;
 	}
-
-	CDebugLogger::WriteInfo(_T("%s[%d]"), __FUNCTIONW__, __LINE__);
 
 	return eRet;
 }
@@ -427,7 +435,6 @@ bool CVsSolutionFile::Valid()
 
 void CVsSolutionFile::Close()
 {
-	CDebugLogger::WriteInfo(__FUNCTIONW__);
 	if (m_pSolution != nullptr) {
 		delete m_pSolution;
 		m_pSolution = nullptr;

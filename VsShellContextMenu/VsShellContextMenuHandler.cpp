@@ -20,25 +20,32 @@ extern long g_cDllRef;
 
 CVsShellContextMenuHandler::CVsShellContextMenuHandler(void)
 	: m_cRef(1),
-	m_pszMenuText(L"&Display File Name (C++)"),
-	m_pszVerb("cppdisplay"),
-	m_pwszVerb(L"cppdisplay"),
-	m_pszVerbCanonicalName("CppDisplayFileName"),
-	m_pwszVerbCanonicalName(L"CppDisplayFileName"),
-	m_pszVerbHelpText("Display File Name (C++)"),
-	m_pwszVerbHelpText(L"Display File Name (C++)")
+	m_pwszVerb(L"slncmd"),
+	m_pszVerb("slncmd"),
+	m_pszVerbCanonicalName("VsSolutionCommand"),
+	m_pwszVerbCanonicalName(L"VsSolutionCommand"),
+	m_pszVerbHelpText("Perform Visual Studio Command On Selected Solution"),
+	m_pwszVerbHelpText(L"Perform Visual Studio Command On Selected Solution")
 {
-	CDebugLogger::WriteInfo(__FUNCTIONW__);
-
 	InterlockedIncrement(&g_cDllRef);
 
 	// Load the bitmap for the menu item. 
 	// If you want the menu item bitmap to be transparent, the color depth of 
 	// the bitmap must not be greater than 8bpp.
-	m_hSettingsMenuBmp = LoadImage(g_hInst, MAKEINTRESOURCE(IDB_OK), IMAGE_BITMAP, 0, 0, LR_DEFAULTSIZE | LR_LOADTRANSPARENT);
-	for (UINT nIndex = IDB_VS2005; nIndex <= IDB_VS2017; nIndex++) {
-		m_hMainBitmaps[VS_VERSION_SUPPORT_MIN+(nIndex-IDB_VS2005)] = LoadImage(g_hInst, MAKEINTRESOURCE(nIndex), IMAGE_BITMAP, 0, 0, LR_DEFAULTSIZE | LR_LOADTRANSPARENT);
+	m_hSettingsMenuBmp = LoadImage(g_hInst, MAKEINTRESOURCE(IDB_VsShellContextMenu), IMAGE_BITMAP, 16, 16, LR_LOADTRANSPARENT);
+	for (UINT nIndex = VS2005_VERSION; nIndex <= VS2017_VERSION; nIndex++) {
+		m_hSolutionBitmaps[nIndex] = nullptr;
 	}
+
+	m_hSolutionBitmaps[VS2005_VERSION] = ::LoadImage(g_hInst, MAKEINTRESOURCE(IDB_VS2005), IMAGE_BITMAP, 16, 16, LR_LOADTRANSPARENT);
+	m_hSolutionBitmaps[VS2008_VERSION] = ::LoadImage(g_hInst, MAKEINTRESOURCE(IDB_VS2008), IMAGE_BITMAP, 16, 16, LR_LOADTRANSPARENT);
+	m_hSolutionBitmaps[VS2010_VERSION] = ::LoadImage(g_hInst, MAKEINTRESOURCE(IDB_VS2010), IMAGE_BITMAP, 16, 16, LR_LOADTRANSPARENT);
+	m_hSolutionBitmaps[VS2012_VERSION] = ::LoadImage(g_hInst, MAKEINTRESOURCE(IDB_VS2012), IMAGE_BITMAP, 16, 16, LR_LOADTRANSPARENT);
+	m_hSolutionBitmaps[VS2013_VERSION] = ::LoadImage(g_hInst, MAKEINTRESOURCE(IDB_VS2013), IMAGE_BITMAP, 16, 16, LR_LOADTRANSPARENT);
+	m_hSolutionBitmaps[VS2015_VERSION] = ::LoadImage(g_hInst, MAKEINTRESOURCE(IDB_VS2015), IMAGE_BITMAP, 16, 16, LR_LOADTRANSPARENT);
+	m_hSolutionBitmaps[VS2017_VERSION] = ::LoadImage(g_hInst, MAKEINTRESOURCE(IDB_VS2017), IMAGE_BITMAP, 16, 16, LR_LOADTRANSPARENT);
+
+
 }
 
 CVsShellContextMenuHandler::~CVsShellContextMenuHandler()
@@ -49,10 +56,20 @@ CVsShellContextMenuHandler::~CVsShellContextMenuHandler()
 		m_hSettingsMenuBmp = NULL;
 	}
 
+	for (UINT nIndex = VS2005_VERSION; nIndex <= VS2017_VERSION; nIndex++) {
+		DeleteObject(m_hSolutionBitmaps[nIndex]);
+		m_hSolutionBitmaps[nIndex] = nullptr;
+	}
+
+	if (nullptr != m_hSubMenu) {
+		DestroyMenu(m_hSubMenu);
+		m_hSubMenu = nullptr;
+	}
+
 	InterlockedDecrement(&g_cDllRef);
 }
 
-void CVsShellContextMenuHandler::OnVerbDisplayFileName(HWND hWnd)
+void CVsShellContextMenuHandler::OnVerb(HWND hWnd)
 {
 	CDebugLogger::WriteInfo(__FUNCTIONW__);
 }
@@ -98,7 +115,6 @@ IFACEMETHODIMP_(ULONG) CVsShellContextMenuHandler::Release()
 // Initialize the context menu handler.
 IFACEMETHODIMP CVsShellContextMenuHandler::Initialize(LPCITEMIDLIST pidlFolder, LPDATAOBJECT pDataObj, HKEY hKeyProgID)
 {
-	CDebugLogger::WriteInfo(__FUNCTIONW__);
 	if (NULL == pDataObj)
 	{
 		return E_INVALIDARG;
@@ -127,7 +143,7 @@ IFACEMETHODIMP CVsShellContextMenuHandler::Initialize(LPCITEMIDLIST pidlFolder, 
 				// Get the path of the file.
 				if (0 != DragQueryFile(hDrop, 0, m_szSelectedFile, ARRAYSIZE(m_szSelectedFile)))
 				{
-					CDebugLogger::WriteInfo(_T("m_szSelectedFile=%s"), m_szSelectedFile);
+					//CDebugLogger::WriteInfo(_T("m_szSelectedFile=%s"), m_szSelectedFile);
 					m_File.Close();
 					if (m_File.Open(m_szSelectedFile) == EVsSolutionFileError_NoErr) {
 						hr = S_OK;
@@ -190,26 +206,51 @@ IFACEMETHODIMP CVsShellContextMenuHandler::QueryContextMenu(HMENU hMenu, UINT in
 	if (m_File.Valid()) {
 		CVsSolution* pSolution = m_File.Solution();
 		if (nullptr != pSolution) {
-			// Add settings item
-			MENUITEMINFO mainItem = { sizeof(mainItem) };
-			mainItem.fMask = MIIM_STRING | MIIM_FTYPE | MIIM_ID | MIIM_STATE;
-			mainItem.wID = idCmdFirst + IDM_SETTINGS;
-			mainItem.fType = MFT_STRING;
-			mainItem.dwTypeData = (PWSTR)m_File.Solution()->Name().c_str();
-			mainItem.fState = MFS_ENABLED;
+			UINT nSubMenuItem = 0;
+			if (nullptr != m_hSubMenu) {
+				DestroyMenu(m_hSubMenu);
+				m_hSubMenu = nullptr;
+			}
 
-			mainItem.hbmpItem = static_cast<HBITMAP>(m_hMainBitmaps[pSolution->Version().Major]);
+			m_hSubMenu = CreatePopupMenu();
+
+			MENUITEMINFO mainItem = { sizeof(mainItem) };
+			mainItem.fMask = MIIM_BITMAP | MIIM_STRING | MIIM_FTYPE | MIIM_STATE | MIIM_SUBMENU;
+			mainItem.wID = idCmdFirst + nMainMenuCount;
+			mainItem.fType = MFT_STRING;
+			mainItem.dwTypeData = (PWSTR)m_File.Solution()->Name();
+			mainItem.fState = MFS_ENABLED;
+			mainItem.hbmpItem = static_cast<HBITMAP>(m_hSolutionBitmaps[pSolution->Version().Major]);
+			mainItem.hSubMenu = m_hSubMenu;
 			
 			if (!InsertMenuItem(hMenu, indexMenu + nMainMenuCount++, TRUE, &mainItem))
 			{
 				return HRESULT_FROM_WIN32(GetLastError());
+			}
+
+			CVsProject* pProj = pSolution->firstProject();
+			if (pProj != nullptr) {
+				while (nullptr != pProj) {
+					MENUITEMINFO miim = { sizeof(miim) };
+					miim.fMask = MIIM_STRING | MIIM_FTYPE | MIIM_STATE;
+					miim.fType = MFT_STRING;
+					miim.dwTypeData = (PWSTR)pProj->Name();
+					miim.fState = MFS_ENABLED;
+
+					if (!InsertMenuItem(m_hSubMenu, nSubMenuItem++, TRUE, &miim))
+					{
+						return HRESULT_FROM_WIN32(GetLastError());
+					}
+
+					pProj = pSolution->nextProject();
+				}
 			}
 		}
 	}
 
 	MENUITEMINFO mii = { sizeof(mii) };
 	mii.fMask = MIIM_BITMAP | MIIM_STRING | MIIM_FTYPE | MIIM_ID | MIIM_STATE;
-	mii.wID = idCmdFirst + IDM_DISPLAY;
+	mii.wID = idCmdFirst + nMainMenuCount;
 	mii.fType = MFT_STRING;
 	mii.dwTypeData = (PWSTR)L"VsShellContextMenu Settings...";
 	mii.fState = MFS_ENABLED;
@@ -273,7 +314,7 @@ IFACEMETHODIMP CVsShellContextMenuHandler::InvokeCommand(LPCMINVOKECOMMANDINFO p
 		// Is the verb supported by this context menu extension?
 		if (StrCmpIA(pici->lpVerb, m_pszVerb) == 0)
 		{
-			OnVerbDisplayFileName(pici->hwnd);
+			OnVerb(pici->hwnd);
 		}
 		else
 		{
@@ -291,7 +332,7 @@ IFACEMETHODIMP CVsShellContextMenuHandler::InvokeCommand(LPCMINVOKECOMMANDINFO p
 		// Is the verb supported by this context menu extension?
 		if (StrCmpIW(((CMINVOKECOMMANDINFOEX*)pici)->lpVerbW, m_pwszVerb) == 0)
 		{
-			OnVerbDisplayFileName(pici->hwnd);
+			OnVerb(pici->hwnd);
 		}
 		else
 		{
@@ -310,7 +351,7 @@ IFACEMETHODIMP CVsShellContextMenuHandler::InvokeCommand(LPCMINVOKECOMMANDINFO p
 		// extension?
 		if (LOWORD(pici->lpVerb) == IDM_DISPLAY)
 		{
-			OnVerbDisplayFileName(pici->hwnd);
+			OnVerb(pici->hwnd);
 		}
 		else
 		{

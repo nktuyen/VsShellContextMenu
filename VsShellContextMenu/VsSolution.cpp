@@ -9,12 +9,16 @@
 CVsSolution::CVsSolution(LPCTSTR lpszPath, float fVer /* = 0.0 */)
 	: CVsFileElement(EVsElement_Solution)
 {
-	m_Version.Minor = unsigned char(modf(fVer, (float*)&m_Version.Major));
+	double fMajor = 0.0, fMinor = 0.0;
+	fMinor = modf(fVer, &fMajor);
+	m_Version.Minor = fMinor;
+	m_Version.Major = fMajor;
 	m_Ite = m_Projects.end();
 	m_CIte = m_Projects.cend();
 	if (nullptr != lpszPath) {
 		m_strPath = StdString(lpszPath);
 	}
+
 	m_pGlobal = new CVsGlobal(this);
 }
 
@@ -27,19 +31,22 @@ CVsSolution::~CVsSolution()
 	}
 }
 
-StdString CVsSolution::Name()
+LPCTSTR CVsSolution::Name()
 {
 	StdString path = this->Path();
 	size_t nStart = path.find_last_of('\\');
 	if (nStart == StdString::npos)
 		nStart = -1;
 
-	return path.substr(nStart + 1);
+	return path.substr(nStart + 1).c_str();
 }
 
 void CVsSolution::setVersion(float fVer)
 {
-	m_Version.Minor = unsigned char(modf(fVer, (float*)&m_Version.Major));
+	double fMajor = 0.0, fMinor = 0.0;
+	fMinor = modf(fVer, &fMajor);
+	m_Version.Minor = fMinor;
+	m_Version.Major = fMajor;
 }
 
 bool CVsSolution::Valid()
@@ -61,7 +68,6 @@ bool CVsSolution::Valid()
 		}
 	});
 
-	CDebugLogger::WriteInfo(_T("%s[%d] bValid=%d"), __FUNCTIONW__, __LINE__, bValid?1:0);
 	return bValid;
 }
 
@@ -73,8 +79,7 @@ bool CVsSolution::addProject(StdString guid, CVsProject* pProject)
 	}
 
 	m_Projects.insert(std::make_pair(guid,pProject));
-
-	CDebugLogger::WriteInfo(_T("%s[%d] m_Projects.size()=%d"), __FUNCTIONW__, __LINE__, m_Projects.size());
+	CDebugLogger::WriteInfo(_T("%s[%d], m_Projects.size()=%d"), __FUNCTIONW__, __LINE__, m_Projects.size());
 
 	return true;
 }
